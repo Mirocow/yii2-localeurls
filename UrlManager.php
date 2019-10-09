@@ -172,7 +172,7 @@ class UrlManager extends BaseUrlManager
      */
     public function parseRequest($request)
     {
-        if ($this->enableLocaleUrls && $this->languages) {
+        if (!Yii::$app->request->isPost && $this->enableLocaleUrls && $this->languages) {
             $this->_request = $request;
             $process = true;
             if ($this->ignoreLanguageUrlPatterns) {
@@ -303,7 +303,7 @@ class UrlManager extends BaseUrlManager
             }
         }
         $pattern = implode('|', $parts);
-        if (preg_match("#^($pattern)\b(/?)#i", $pathInfo, $m)) {
+        if (preg_match("#^($pattern)(/?)\b#i", $pathInfo, $m)) {
             $this->_request->setPathInfo(mb_substr($pathInfo, mb_strlen($m[1].$m[2])));
             $code = $m[1];
             if (isset($this->languages[$code])) {
