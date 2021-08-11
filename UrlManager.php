@@ -243,34 +243,67 @@ class UrlManager extends BaseUrlManager
                     $isLanguageGiven && ($this->enableLanguagePersistence || $this->enableLanguageDetection)
                 )
             ) {
-                $info = parse_url($url);
 
-                if(!isset($info['host'])){
-                    return $url;
+                $key = array_search($language, $this->languages);
+
+                if (is_string($key)) {
+                    $language = $key;
                 }
 
-                $parts = [];
+                if (!$this->keepUppercaseLanguageCode) {
+                    $language = strtolower($language);
+                }
 
-                if(!isset($info['scheme'])){
-                    $http = Yii::$app->request->getIsSecureConnection() ? 'https' : 'http';
-                    $parts[] = $http . '://';
+                // Calculate the position where the language code has to be inserted
+                // depending on the showScriptName and baseUrl configuration:
+                //
+                //  - /foo/bar -> /de/foo/bar
+                //  - /base/foo/bar -> /base/de/foo/bar
+                //  - /index.php/foo/bar -> /index.php/de/foo/bar
+                //  - /base/index.php/foo/bar -> /base/index.php/de/foo/bar
+                //
+                $prefix = $this->showScriptName ? $this->getScriptUrl() : $this->getBaseUrl();
+                $insertPos = strlen($prefix);
+
+                // Remove any trailing slashes for root URLs
+                if ($this->suffix !== '/') {
+                    if (count($params) === 1 ) {
+                        // / -> ''
+                        // /base/ -> /base
+                        // /index.php/ -> /index.php
+                        // /base/index.php/ -> /base/index.php
+                        if ($url === $prefix . '/') {
+                            $url = rtrim($url, '/');
+                        }
+                    } elseif (strncmp($url, $prefix . '/?', $insertPos + 2) === 0) {
+                        // /?x=y -> ?x=y
+                        // /base/?x=y -> /base?x=y
+                        // /index.php/?x=y -> /index.php?x=y
+                        // /base/index.php/?x=y -> /base/index.php?x=y
+                        $url = substr_replace($url, '', $insertPos, 1);
+                    }
+                }
+
+                // If we have an absolute URL the length of the host URL has to
+                // be added:
+                //
+                //  - http://www.example.com
+                //  - http://www.example.com?x=y
+                //  - http://www.example.com/foo/bar
+                //
+                if (strpos($url, '://')!==false) {
+                    // Host URL ends at first '/' or '?' after the schema
+                    if (($pos = strpos($url, '/', 8))!==false || ($pos = strpos($url, '?', 8))!==false) {
+                        $insertPos += $pos;
+                    } else {
+                        $insertPos += strlen($url);
+                    }
+                }
+                if ($insertPos > 0) {
+                    return substr_replace($url, '/' . $language, $insertPos, 0);
                 } else {
-                    $parts[] = $info['scheme'] . '://';
+                    return '/' . $language . $url;
                 }
-
-                $parts[] = $info['host'];
-
-                if (!isset($info['path'])) {
-                    $parts[] = '/' . $language;
-                } else {
-                    $parts[] = '/' . $language . '/' . ltrim($info['path'], '/');
-                }
-
-                if (isset($info['query'])) {
-                    $parts[] = '?' . $info['query'];
-                }
-
-                return implode('', $parts);
 
             } else {
                 return $url;
